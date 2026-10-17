@@ -1,0 +1,13 @@
+{
+  "name": "jwt-tool",
+  "version": "1.0.0",
+  "private": true,
+  "description": "本地运行的 JWT 解码 / 编码 / 密钥字典工具（零外部依赖，数据不出本机）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

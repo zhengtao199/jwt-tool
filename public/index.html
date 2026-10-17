@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JWT 工具 · 解码 / 编码 / 密钥字典</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">JWT</span>
+    <div>
+      <h1>JWT 解码 / 编码工具</h1>
+      <p class="sub">纯本地运行 · 密钥与令牌不会离开本机</p>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="decode">解码解析</button>
+    <button class="tab" data-tab="keys">密钥字典</button>
+    <button class="tab" data-tab="sign">编码签发</button>
+  </nav>
+</header>
+
+<main>
+  <div id="offline-banner" class="alert danger hidden">
+    <span id="offline-text"></span>
+    <button class="btn small" id="btn-retry">重试</button>
+  </div>
+
+  <!-- 解码解析 -->
+  <section class="panel active" id="panel-decode">
+    <div class="card">
+      <div class="card-head">
+        <h2>输入令牌</h2>
+        <div class="actions">
+          <button class="btn ghost" id="btn-sample">填入示例</button>
+          <button class="btn ghost" id="btn-clear">清空</button>
+        </div>
+      </div>
+      <textarea id="token-input" class="code-input" spellcheck="false" placeholder="粘贴 JWT，例如 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+      <div class="hint">支持带 <code>Bearer </code> 前缀的 Authorization 头，会自动剥离。</div>
+    </div>
+
+    <div id="decode-error" class="alert danger hidden"></div>
+    <div id="decode-warnings"></div>
+
+    <div id="decode-result" class="hidden">
+      <div class="segments">
+        <div class="seg seg-h"><span class="dot"></span><span class="seg-text" id="seg-header"></span></div>
+        <div class="seg seg-p"><span class="dot"></span><span class="seg-text" id="seg-payload"></span></div>
+        <div class="seg seg-s"><span class="dot"></span><span class="seg-text" id="seg-signature"></span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Header</h2><button class="btn ghost small" data-copy="out-header">复制</button></div>
+          <pre class="json" id="out-header"></pre>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Payload</h2><button class="btn ghost small" data-copy="out-payload">复制</button></div>
+          <pre class="json" id="out-payload"></pre>
+        </div>
+      </div>
+
+      <div class="card" id="claims-card">
+        <div class="card-head"><h2>标准声明</h2></div>
+        <table class="table" id="claims-table"><tbody></tbody></table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>签名校验（使用密钥字典）</h2>
+          <div class="actions">
+            <label class="check"><input type="checkbox" id="auto-verify"> 解码后自动校验</label>
+            <button class="btn primary" id="btn-verify">开始校验</button>
+          </div>
+        </div>
+        <p class="hint">会用密钥重算签名并比对，命中即说明该密钥可签发此令牌。仅支持 HS256 / HS384 / HS512。<b>校验范围：<span id="verify-scope">全部</span></b>（在「密钥字典」页可勾选指定密钥）。</p>
+        <div id="verify-result" class="verify-result"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 密钥字典 -->
+  <section class="panel" id="panel-keys">
+    <div class="card">
+      <div class="card-head"><h2>新增密钥</h2></div>
+      <form id="key-form" class="key-form">
+        <input type="text" id="key-name" placeholder="备注名（可选，如：测试环境密钥）" maxlength="60">
+        <input type="text" id="key-secret" placeholder="密钥内容（必填）" required>
+        <select id="key-encoding">
+          <option value="utf8">UTF-8 文本</option>
+          <option value="base64">Base64</option>
+          <option value="hex">Hex</option>
+        </select>
+        <button class="btn primary" type="submit">添加</button>
+      </form>
+      <div class="hint">字典保存在本机 <code>data/keys.json</code>，首次启动会预置一批常见弱密钥，便于检测弱签名密钥。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>从 txt 导入</h2>
+        <span class="hint">一行一个密钥</span>
+      </div>
+      <div class="import-row">
+        <label class="btn file-btn">选择 .txt 文件
+          <input type="file" id="key-file" accept=".txt,text/plain" hidden>
+        </label>
+        <select id="import-encoding">
+          <option value="utf8">UTF-8 文本</option>
+          <option value="base64">Base64</option>
+          <option value="hex">Hex</option>
+        </select>
+        <label class="check"><input type="checkbox" id="import-dedupe" checked> 跳过已存在的重复项</label>
+        <button class="btn primary" id="btn-import">导入</button>
+        <span id="file-name" class="hint"></span>
+      </div>
+      <textarea id="import-content" class="code-input small" spellcheck="false" placeholder="也可直接粘贴内容：一行一个密钥；支持「备注:密钥」或「备注,密钥」；# 开头为注释行"></textarea>
+      <div class="hint">单文件上限默认 64MB / 200 万行（超过 1MB 不载入预览框，直接上传，避免浏览器卡住）。导入百万级字典通常需要几秒到十几秒。</div>
+      <div id="import-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>密钥列表 <span class="badge" id="key-count">0</span></h2>
+        <div class="actions">
+          <input type="text" id="key-search" class="search" placeholder="搜索备注或密钥内容">
+          <button class="btn ghost small" id="btn-reload-keys">刷新</button>
+        </div>
+      </div>
+      <div class="selbar">
+        <span class="hint">已选 <b id="sel-count">0</b> 条（勾选后，解码页的校验只跑选中项，大字典更快）</span>
+        <div class="actions">
+          <button class="btn ghost small" id="btn-clear-sel">清空选择</button>
+        </div>
+      </div>
+      <table class="table">
+        <thead><tr><th style="width:6%"><label class="check"><input type="checkbox" id="sel-all"> 本页</label></th><th style="width:26%">备注</th><th style="width:20%">值（脱敏）</th><th style="width:10%">长度</th><th style="width:12%">编码</th><th style="width:26%">操作</th></tr></thead>
+        <tbody id="key-rows"></tbody>
+      </table>
+      <div class="pager">
+        <span id="pager-info" class="hint"></span>
+        <div class="actions">
+          <select id="page-size">
+            <option value="100">每页 100</option>
+            <option value="500">每页 500</option>
+            <option value="1000">每页 1000</option>
+          </select>
+          <button class="btn ghost small" id="btn-prev">上一页</button>
+          <button class="btn ghost small" id="btn-next">下一页</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 编码签发 -->
+  <section class="panel" id="panel-sign">
+    <div class="card">
+      <div class="card-head"><h2>签发新令牌</h2></div>
+      <div class="sign-form">
+        <div class="row">
+          <label>算法
+            <select id="sign-alg">
+              <option value="HS256" selected>HS256</option>
+              <option value="HS384">HS384</option>
+              <option value="HS512">HS512</option>
+            </select>
+          </label>
+          <label>密钥来源
+            <select id="sign-key-source">
+              <option value="dict" selected>从字典选择</option>
+              <option value="manual">手动输入</option>
+            </select>
+          </label>
+          <label id="wrap-sign-keyid">字典密钥
+            <select id="sign-keyid"></select>
+          </label>
+          <label id="wrap-sign-secret" class="hidden">密钥
+            <input type="text" id="sign-secret" placeholder="输入密钥">
+          </label>
+          <label id="wrap-sign-encoding" class="hidden">编码
+            <select id="sign-encoding">
+              <option value="utf8">UTF-8</option>
+              <option value="base64">Base64</option>
+              <option value="hex">Hex</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid-2">
+          <div>
+            <div class="card-head"><h3>Header（JSON）</h3></div>
+            <textarea id="sign-header" class="code-input small" spellcheck="false">{}</textarea>
+          </div>
+          <div>
+            <div class="card-head"><h3>Payload（JSON）</h3></div>
+            <textarea id="sign-payload" class="code-input small" spellcheck="false">{
+  "sub": "1234567890",
+  "name": "张三",
+  "role": "admin"
+}</textarea>
+          </div>
+        </div>
+        <div class="row end">
+          <button class="btn ghost" id="btn-fill-exp">追加 24 小时过期时间</button>
+          <button class="btn primary" id="btn-sign">生成令牌</button>
+        </div>
+      </div>
+      <div id="sign-error" class="alert danger hidden"></div>
+      <div id="sign-result" class="hidden">
+        <div class="card-head"><h3>结果</h3><button class="btn ghost small" id="btn-copy-token">复制</button></div>
+        <pre class="json token-out" id="sign-out"></pre>
+        <button class="btn ghost small" id="btn-back-decode">在解码页查看 →</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">本工具仅在 127.0.0.1 提供访问，不向任何外部地址发送数据。</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
